@@ -1,52 +1,66 @@
-import {compile, run} from './compiler';
+import {run} from './runner';
 
 
-document.addEventListener("DOMContentLoaded", async () => {
-  function display(arg : string) {
-    const elt = document.createElement("pre");
-    document.getElementById("output").appendChild(elt);
-    elt.innerText = arg;
-  }
-  var importObject = {
-    imports: {
-      print_num: (arg : any) => {
-        console.log("Logging from WASM: ", arg);
-        display(String(arg));
-        return arg;
+function webStart() {
+  document.addEventListener("DOMContentLoaded", function() {
+    function display(arg : string) {
+      const elt = document.createElement("pre");
+      document.getElementById("printlog").appendChild(elt);
+      elt.innerText = arg;
+    }
+    var importObject = {
+      imports: {
+        print: (arg : any) => {
+          display(String(arg));
+          return arg;
+        },
+        abs: Math.abs,
+        max: Math.max,
+        min: Math.min,
+        pow: Math.pow,
+        print_num: (arg : any) => {
+          display(String(arg));
+          return arg;
+        },
+        print_bool: (arg : any) => {
+          if(arg === 0) { display("False"); }
+          else { display("True"); }
+          return arg;
+        },
+        print_none: (arg: any) => {
+          display("None");
+          return arg;
+        }
       },
-      print_bool: (arg : any) => {
-        if(arg === 0) { display("False"); }
-        else { display("True"); }
-        return arg;
-      },
-      print_none: (arg: any) => {
-        display("None");
-        return arg;
+    };
+
+    function renderResult(result : any) : void {
+      if(result === undefined) { console.log("skip"); return; }
+      // const elt = document.createElement("pre");
+      const elt = document.getElementById("lastexpr");
+      elt.innerText = String(result);
+    }
+
+    function renderError(result : any) : void {
+      const elt = document.getElementById("errors");
+      // document.getElementById("output").appendChild(elt);
+      elt.setAttribute("style", "color: red");
+      let errorString = String(result);
+      if (errorString.includes("undefined local variable")) {
+        errorString = "ReferenceError " + errorString;
       }
-    },
-  };
-  const runButton = document.getElementById("run");
-  const userCode = document.getElementById("user-code") as HTMLTextAreaElement;
-  runButton.addEventListener("click", async () => {
-    const program = userCode.value;
-    const output = document.getElementById("output");
-    try {
-      const wat = compile(program);
-      const code = document.getElementById("generated-code");
-      code.textContent = wat;
-      const result = await run(wat, importObject);
-      output.textContent += String(result);
-      output.setAttribute("style", "color: black");
+      elt.innerText = errorString;
     }
-    catch(e) {
-      console.error(e)
-      output.textContent = String(e);
-      output.setAttribute("style", "color: red");
-    }
-  });
 
-  userCode.value = localStorage.getItem("program");
-  userCode.addEventListener("keypress", async() => {
-    localStorage.setItem("program", userCode.value);
+    document.getElementById("run").addEventListener("click", function(e) {
+      const source = document.getElementById("user-code") as HTMLTextAreaElement;
+      document.getElementById("errors").innerHTML = "";
+      document.getElementById("lastexpr").innerHTML = "";
+      document.getElementById("printlog").innerHTML = "";
+      run(source.value, {importObject}).then((r) => { renderResult(r); console.log ("run finished") })
+          .catch((e) => { renderError(e); console.log("run failed", e) });;
+    });
   });
-});
+}
+
+webStart();
