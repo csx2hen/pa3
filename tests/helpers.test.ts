@@ -1,5 +1,5 @@
 import wabt from "wabt";
-import { Type as AstType } from "../ast";
+import { NUM as AstNUM, BOOL as AstBOOL, NONE as AstNone } from "../ast";
 import { codeGenProgram } from "../codegen";
 import { parse } from "../parser";
 import { typeCheckProgram } from "../typecheck";
@@ -11,11 +11,11 @@ export function typeCheck(source: string): Type {
   const ast = parse(source)
   const typedAst = typeCheckProgram(ast)
   switch (typedAst.a) {
-    case AstType.bool:
+    case AstBOOL:
       return BOOL
-    case AstType.int:
+    case AstNUM:
       return NUM
-    case AstType.none:
+    case AstNone:
       return NONE
     default:
       return CLASS("todo")

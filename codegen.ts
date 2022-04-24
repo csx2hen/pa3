@@ -1,11 +1,11 @@
-import { Binop, Expr, FunDef, Literal, Program, Stmt, Type, Uniop } from "./ast";
+import { Binop, BOOL, Expr, FunDef, Literal, NUM, Program, Stmt, Type, Uniop } from "./ast";
 
 type Env = Map<string, boolean>;
 
 export function codeGenProgram(prog: Program<Type>) : string {
   const emptyEnv = new Map<string, boolean>();
-  const vars = prog.varinits;
-  const funs = prog.fundefs;
+  const vars = prog.varDefs;
+  const funs = prog.funDefs;
   const stmts = prog.stmts;
 
   const funsCode : string[] = funs.map(f => codeGenFunc(f, emptyEnv)).map(f => f.join("\n"));
@@ -49,7 +49,7 @@ export function codeGenFunc(f: FunDef<Type>, locals :Env) : Array<string> {
   const withParamsAndVariables = new Map<string, boolean>(locals.entries());
 
   // Construct the environment for the function body
-  const variables = f.body.vardefs;
+  const variables = f.body.varDefs;
   variables.forEach(v => withParamsAndVariables.set(v.type.name, true));
   f.params.forEach(p => withParamsAndVariables.set(p.name, true));
 
@@ -121,18 +121,18 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
       switch (expr.op) {
         case Uniop.Minus:
           const dummyLit = <Literal<Type>>{value: 0, tag: "num"};
-          dummyLit.a = Type.int;
+          dummyLit.a = NUM;
           const dummyVar = <Expr<Type>>{tag:"literal", literal: dummyLit};
-          dummyVar.a = Type.int;
+          dummyVar.a = NUM;
           const lhsExprs = codeGenExpr(dummyVar, locals);
           const rhsExprs = codeGenExpr(expr.expr, locals);
           const opstmts = codeGenBinOp(Binop.Minus);
           return [...lhsExprs, ...rhsExprs, ...opstmts];
         case Uniop.Not:
           const dummyLitBool = <Literal<Type>>{value: true, tag: "bool"};
-          dummyLitBool.a = Type.bool;
+          dummyLitBool.a = BOOL;
           const dummyVarBool = <Expr<Type>>{tag:"literal", literal: dummyLitBool};
-          dummyVarBool.a = Type.bool;
+          dummyVarBool.a = BOOL;
           const lhsExprsBool = codeGenExpr(dummyVarBool, locals);
           const rhsExprsBool = codeGenExpr(expr.expr, locals);
           const opstmtsBool = codeGenBinOp(Binop.Minus);
@@ -144,7 +144,7 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
       if(expr.name === "print") {
         if (expr.args[0].a !== undefined) {
           switch(expr.args[0].a) {
-            case Type.bool: toCall = "print_bool"; break;
+            case BOOL: toCall = "print_bool"; break;
             default: toCall = "print_num"; break;
           }
         } else {

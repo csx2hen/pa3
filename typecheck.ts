@@ -1,4 +1,4 @@
-import { Binop, Expr, FunDef, Literal, Program, Stmt, Type, TypedVar, Uniop, VarInit } from './ast';
+import { Binop, BOOL, Expr, FunDef, Literal, NUM, Program, Stmt, Type, TypedVar, Uniop, VarDef } from './ast';
 
 type TypeEnv = {
   vars: Map<string, Type>,
@@ -19,39 +19,39 @@ export const exclusiveNoneOps :Binop[] =  [Binop.Is];
 export function getConditionTypeFromOp(binop: Binop) : Type {
   switch (binop) {
     case Binop.Plus:
-      return Type.int;
+      return NUM;
     case Binop.Minus:
-      return Type.int;
+      return NUM;
     case Binop.Star:
-      return Type.int;
+      return NUM;
     case Binop.DoubleDash:
-      return Type.int;
+      return NUM;
     case Binop.Percentile:
-      return Type.int;
+      return NUM;
     case Binop.DoubleEquals:
-      return Type.bool;
+      return BOOL;
     case Binop.NotEqual:
-      return Type.bool;
+      return BOOL;
     case Binop.LessOrEqual:
-      return Type.bool;
+      return BOOL;
     case Binop.GreaterOrEqual:
-      return Type.bool;
+      return BOOL;
     case Binop.LessThan:
-      return Type.bool;
+      return BOOL;
     case Binop.GreaterThan:
-      return Type.bool;
+      return BOOL;
     case Binop.Is:
-      return Type.bool;
+      return BOOL;
   }
 }
 
 export function typeCheckProgram(prog: Program<null>) : Program<Type> {
   const env :TypeEnv = {vars: new Map(), funs: new Map(), retType: undefined, globalOverWrite: new Set()};
-  const typedVarInits :VarInit<Type>[] = [];
+  const typedVarInits :VarDef<Type>[] = [];
   const typedFunDefs :FunDef<Type>[] = [];
   const typedStmts :Stmt<Type>[] = [];
 
-  prog.varinits.forEach((varinit) => {
+  prog.varDefs.forEach((varinit) => {
     const typedVarInit = typeCheckVarInit(varinit);
     typedVarInits.push(typedVarInit);
     if (env.vars.has(typedVarInit.type.name)) {
@@ -60,7 +60,7 @@ export function typeCheckProgram(prog: Program<null>) : Program<Type> {
     env.vars.set(typedVarInit.type.name, typedVarInit.type.type);
   });
 
-  prog.fundefs.forEach((fundef) => {
+  prog.funDefs.forEach((fundef) => {
     if (inBuiltFuncs.includes(fundef.name)) {
       throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${fundef.name}`);
     }
@@ -70,7 +70,7 @@ export function typeCheckProgram(prog: Program<null>) : Program<Type> {
     env.funs.set(fundef.name, [fundef.params.map(param => param.type), fundef.ret]);
   });
 
-  prog.fundefs.forEach((fundef) => {
+  prog.funDefs.forEach((fundef) => {
     const typedFunDef = typeCheckFunDefs(fundef, env);
     typedFunDefs.push(typedFunDef);
     //env.funs.set(typedFunDef.name, [fundef.params.map(param => param.type), fundef.ret]);
@@ -81,10 +81,10 @@ export function typeCheckProgram(prog: Program<null>) : Program<Type> {
     typedStmts.push(typedStmt);
   });
 
-  return {...prog, varinits: typedVarInits, fundefs: typedFunDefs, stmts: typedStmts};
+  return {...prog, varDefs: typedVarInits, funDefs: typedFunDefs, stmts: typedStmts};
 }
 
-export function typeCheckVarInit(init: VarInit<null>) : VarInit<Type> {
+export function typeCheckVarInit(init: VarDef<null>) : VarDef<Type> {
   const typedVar = typeCheckTypedVar(init.type);
   const typedLiteral = typeCheckLiteral(init.literal);
   if (typedLiteral.a !== typedVar.a)
@@ -99,7 +99,7 @@ export function typeCheckTypedVar(typedVar: TypedVar<null>) : TypedVar<Type> {
 export function typeCheckFunDefs(fun: FunDef<null>, env: TypeEnv) : FunDef<Type> {
   const localEnv = duplicateEnv(env);
   const typedParams: TypedVar<Type>[] = [];
-  const typedVarInits: VarInit<Type>[] = [];
+  const typedVarInits: VarDef<Type>[] = [];
   const localMap: Set<string> = new Set();
 
   // add params to env
@@ -116,7 +116,7 @@ export function typeCheckFunDefs(fun: FunDef<null>, env: TypeEnv) : FunDef<Type>
 
   // add inits to env
   // check inits
-  fun.body.vardefs.forEach(vardef => {
+  fun.body.varDefs.forEach(vardef => {
     const typedVarDef = typeCheckVarInit(vardef);
     typedVarInits.push(typedVarDef);
     if (localMap.has(typedVarDef.type.name)) {
@@ -147,7 +147,7 @@ export function typeCheckFunDefs(fun: FunDef<null>, env: TypeEnv) : FunDef<Type>
   if (!returnCame) {
     throw new Error("TYPE ERROR: funtion must have a return statement");
   }
-  return {...fun, a: fun.ret, params: typedParams, body: {vardefs: typedVarInits, stmts: typedStmts}};
+  return {...fun, a: fun.ret, params: typedParams, body: {varDefs: typedVarInits, stmts: typedStmts}};
 }
 
 export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign: boolean = true) : Stmt<Type> {
@@ -175,7 +175,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
       }
     case "if":
       const typedCondIf = typeCheckExpr(stmt.cond, env);
-      if (typedCondIf.a !== Type.bool) {
+      if (typedCondIf.a !== BOOL) {
         throw new Error(`TYPE ERROR: conditional expression cannot be of type ${typedCondIf.a}`);
       }
       const typedStmts :Stmt<Type>[] = [];
@@ -187,7 +187,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
 
       if (stmt.elif) {
         const typedElifCond = typeCheckExpr(stmt.elif.cond, env);
-        if (typedElifCond.a !== Type.bool) {
+        if (typedElifCond.a !== BOOL) {
           throw new Error(`TYPE ERROR: conditional expression cannot be of type ${typedElifCond.a}`);
         }
         const typedElifStmts :Stmt<Type>[] = [];
@@ -206,7 +206,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
       return {...stmt, cond: typedCondIf, stmts: typedStmts, elif: typedElif, else: typedElse};
     case "while":
       const typedCondWhile = typeCheckExpr(stmt.cond, env);
-      if (typedCondWhile.a !== Type.bool) {
+      if (typedCondWhile.a !== BOOL) {
         throw new Error(`TYPE ERROR: conditional expression cannot be of type ${typedCondWhile.a}`);
       }
       const typedStmtsWhile :Stmt<Type>[] = [];
@@ -238,11 +238,11 @@ export function typeCheckExpr(expr: Expr<null>, env: TypeEnv) : Expr<Type> {
     case "builtin2":
       const arg1 = typeCheckExpr(expr.arg1, env);
       const arg2 = typeCheckExpr(expr.arg2, env);
-      if (arg1.a !== Type.int)
+      if (arg1.a !== NUM)
         throw new Error("TYPE ERROR: left must be int");
-      if (arg2.a !== Type.int)
+      if (arg2.a !== NUM)
         throw new Error("TYPE ERROR: right must be int");
-      return {...expr, arg1: arg1, arg2: arg2, a: Type.int }
+      return {...expr, arg1: arg1, arg2: arg2, a: NUM }
     case "uniexpr":
       const uniOpType = getUniOpType(expr.op);
       const uniExpr = typeCheckExpr(expr.expr, env);
@@ -254,9 +254,9 @@ export function typeCheckExpr(expr: Expr<null>, env: TypeEnv) : Expr<Type> {
       const left = typeCheckExpr(expr.left, env);
       const right = typeCheckExpr(expr.right, env);
       if (exclusiveIntOps.includes(expr.op)) {
-        if (left.a !== Type.int)
+        if (left.a !== NUM)
         throw new Error(`TYPE ERROR: cannot apply ${expr.op} on types ${left.a} and ${right.a}`);
-        if (right.a !== Type.int)
+        if (right.a !== NUM)
           throw new Error(`TYPE ERROR: cannot apply ${expr.op} on types ${left.a} and ${right.a}`);
         return {...expr, left: left, right: right, a: getConditionTypeFromOp(expr.op) };
       } else if (exclusiveNoneOps.includes(expr.op)) {
@@ -295,23 +295,23 @@ export function typeCheckExpr(expr: Expr<null>, env: TypeEnv) : Expr<Type> {
             if (typedArgsInBuilt.length !== 1) {
               throw new Error(`TYPE ERROR: expected 1 arguments got ${typedArgsInBuilt.length}`);
             }
-            if (typedArgsInBuilt[0].a != Type.int) {
+            if (typedArgsInBuilt[0].a != NUM) {
               throw new Error(`TYPE ERROR: expected type int, got type ${typedArgsInBuilt[0].a} in parameter 0`);
             }
-            return {...expr, args: typedArgsInBuilt, a: Type.int};
+            return {...expr, args: typedArgsInBuilt, a: NUM};
           case "min":
           case "pow":
           case "max":
             if (typedArgsInBuilt.length !== 2) {
               throw new Error(`TYPE ERROR: expected 2 arguments got ${typedArgsInBuilt.length}`);
             }
-            if (typedArgsInBuilt[0].a != Type.int) {
+            if (typedArgsInBuilt[0].a != NUM) {
               throw new Error(`TYPE ERROR: expected type int, got type ${typedArgsInBuilt[0].a} in parameter 0`);
             }
-            if (typedArgsInBuilt[1].a != Type.int) {
+            if (typedArgsInBuilt[1].a != NUM) {
               throw new Error(`TYPE ERROR: expected type int, got type ${typedArgsInBuilt[0].a} in parameter 1`);
             }
-            return {...expr, args: typedArgsInBuilt, a: Type.int};
+            return { ...expr, args: typedArgsInBuilt, a: NUM};
         }
         return {...expr, args: typedArgsInBuilt, a: typedArgsInBuilt[0].a};
       }
@@ -338,9 +338,9 @@ export function typeCheckExpr(expr: Expr<null>, env: TypeEnv) : Expr<Type> {
 export function typeCheckLiteral(literal: Literal<null>) : Literal<Type> {
   switch (literal.tag) {
     case "num":
-      return {...literal, a: Type.int }
+      return { ...literal, a: NUM }
     case "bool":
-      return {...literal, a: Type.bool }
+      return {...literal, a: BOOL }
     case "none":
       return {...literal }
   }
@@ -349,9 +349,9 @@ export function typeCheckLiteral(literal: Literal<null>) : Literal<Type> {
 export function getUniOpType(uniop: Uniop) : Type {
   switch (uniop) {
     case Uniop.Not:
-      return Type.bool;
+      return BOOL;
     case Uniop.Minus:
-      return Type.int;
+      return NUM;
     default:
       throw new Error("Uniop type does not exist");
   }
