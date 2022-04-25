@@ -386,7 +386,7 @@ export function traverseVarDef(c: TreeCursor, s: string): VarDef<null> {
   c.nextSibling(); // assignment
   c.nextSibling(); // literal
   const literal = traverseLiteral(c, s);
-  return <VarDef<null>>{ type: typedVar, literal: literal };
+  return <VarDef<null>>{ typedVar: typedVar, literal: literal };
 }
 
 export function isVarDef(c: TreeCursor, s: string): boolean {
@@ -502,6 +502,6 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
 
 export function parse(source: string): Program<null> {
   const t = parser.parse(source);
-  console.log(stringifyTree(t.cursor(), source, 1));
+  // console.log(stringifyTree(t.cursor(), source, 1));
   return traverse(t.cursor(), source);
 }

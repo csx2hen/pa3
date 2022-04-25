@@ -23,4 +23,6 @@ print(r1.mul(r2).mul(r2).n)
 `
 
 const p = parse(py_1);
-console.log(JSON.stringify(p, null, 2))
+const typed = typeCheckProgram(p);
+console.log(JSON.stringify(typed, null, 2))
+console.log(typed.a)

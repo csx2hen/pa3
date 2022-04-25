@@ -10,15 +10,15 @@ import * as compiler from '../compiler';
 export function typeCheck(source: string): Type {
   const ast = parse(source)
   const typedAst = typeCheckProgram(ast)
+  if (typedAst.a.tag == "class")
+    return CLASS(typedAst.a.name)
   switch (typedAst.a) {
     case AstBOOL:
       return BOOL
     case AstNUM:
       return NUM
-    case AstNone:
-      return NONE
     default:
-      return CLASS("todo")
+      return NONE
   }
 }
 

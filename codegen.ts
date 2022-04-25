@@ -8,9 +8,9 @@ export function codeGenProgram(prog: Program<Type>) : string {
   const funs = prog.funDefs;
   const stmts = prog.stmts;
 
-  const funsCode : string[] = funs.map(f => codeGenFunc(f, emptyEnv)).map(f => f.join("\n"));
+  const funsCode = funs.map(f => codeGenFunc(f, emptyEnv)).map(f => f.join("\n"));
   const allFuns = funsCode.join("\n\n");
-  const varDecls = vars.map(v => `(global $${v.type.name} (mut i32) ${codeGenLiteral(v.literal, emptyEnv).join("")})`).join("\n");
+  const varDecls = vars.map(v => `(global $${v.typedVar.name} (mut i32) ${codeGenLiteral(v.literal, emptyEnv).join("")})`).join("\n");
   const allStmts = stmts.map(s => codeGenStmt(s, emptyEnv)).map(f => f.join("\n"));
 
   const main = [`(local $scratch i32)`, ...allStmts].join("\n");
@@ -50,12 +50,12 @@ export function codeGenFunc(f: FunDef<Type>, locals :Env) : Array<string> {
 
   // Construct the environment for the function body
   const variables = f.body.varDefs;
-  variables.forEach(v => withParamsAndVariables.set(v.type.name, true));
+  variables.forEach(v => withParamsAndVariables.set(v.typedVar.name, true));
   f.params.forEach(p => withParamsAndVariables.set(p.name, true));
 
   // Construct the code for params and variable declarations in the body
   const params = f.params.map(p => `(param $${p.name} i32)`).join(" ");
-  const varDecls = variables.map(v => `(local $${v.type.name} i32)${codeGenLiteral(v.literal, locals).join("")}(local.set $${v.type.name})`).join("\n");
+  const varDecls = variables.map(v => `(local $${v.typedVar.name} i32)${codeGenLiteral(v.literal, locals).join("")}(local.set $${v.typedVar.name})`).join("\n");
 
   const stmts = f.body.stmts.map(s => codeGenStmt(s, withParamsAndVariables)).map(f => f.join("\n"));
   const stmtsBody = stmts.join("\n");

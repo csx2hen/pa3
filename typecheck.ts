@@ -1,14 +1,21 @@
-import { Binop, BOOL, Expr, FunDef, Literal, NUM, Program, Stmt, Type, TypedVar, Uniop, VarDef } from './ast';
+import { Binop, BOOL, CLASS, ClassDef, Expr, FunDef, Literal, NONE, NUM, Program, Stmt, Type, TypedVar, Uniop, VarDef } from './ast';
 
 type TypeEnv = {
   vars: Map<string, Type>,
   funs: Map<string, [Type[], Type]>,
+  classes: Map<string, [Map<string, Type>, Map<string, [Type[], Type]>]>
   retType: Type | undefined,
   globalOverWrite: Set<string>
 }
 
 function duplicateEnv(env: TypeEnv): TypeEnv {
-  return { vars: new Map(env.vars), funs: new Map(env.funs), retType: env.retType, globalOverWrite: new Set(env.globalOverWrite) };
+  return {
+    vars: new Map(env.vars),
+    funs: new Map(env.funs),
+    retType: env.retType,
+    classes: new Map(env.classes),
+    globalOverWrite: new Set(env.globalOverWrite),
+  };
 }
 
 export const inBuiltFuncs: string[] = ['pow', 'abs', 'print', 'max', 'min'];
@@ -46,34 +53,60 @@ export function getConditionTypeFromOp(binop: Binop): Type {
 }
 
 export function typeCheckProgram(prog: Program<null>): Program<Type> {
-  const env: TypeEnv = { vars: new Map(), funs: new Map(), retType: undefined, globalOverWrite: new Set() };
+  const env: TypeEnv = { vars: new Map(), funs: new Map(), classes: new Map(), retType: undefined, globalOverWrite: new Set() };
   const typedVarInits: VarDef<Type>[] = [];
   const typedFunDefs: FunDef<Type>[] = [];
+  const typedClassDefs: ClassDef<Type>[] = [];
   const typedStmts: Stmt<Type>[] = [];
 
-  prog.varDefs.forEach((varinit) => {
-    const typedVarInit = typeCheckVarInit(varinit);
-    typedVarInits.push(typedVarInit);
-    if (env.vars.has(typedVarInit.type.name)) {
-      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${typedVarInit.type.name}`);
+  prog.classDefs.forEach((classDef) => {
+    if (env.classes.has(classDef.name)) {
+      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${classDef.name}`);
     }
-    env.vars.set(typedVarInit.type.name, typedVarInit.type.type);
+    const fields = new Map();
+    const methods = new Map();
+    classDef.fields.forEach((field) => {
+      if (fields.has(field.typedVar.name)) {
+        throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${field.typedVar.name}`);
+      }
+      fields.set(field.typedVar.name, field.typedVar.type);
+    });
+    classDef.methods.forEach((method) => {
+      if (methods.has(method.name)) {
+        throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${method.name}`);
+      }
+      methods.set(method.name, [method.params.map((p) => p.type), method.ret]);
+    });
+    env.classes.set(classDef.name, [fields, methods]);
   });
 
-  prog.funDefs.forEach((fundef) => {
-    if (inBuiltFuncs.includes(fundef.name)) {
-      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${fundef.name}`);
+  prog.varDefs.forEach((varDef) => {
+    const typedVarDef = typeCheckVarDef(varDef, env);
+    typedVarInits.push(typedVarDef);
+    if (env.vars.has(typedVarDef.typedVar.name)) {
+      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${typedVarDef.typedVar.name}`);
     }
-    if (env.funs.has(fundef.name)) {
-      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${fundef.name}`);
-    }
-    env.funs.set(fundef.name, [fundef.params.map(param => param.type), fundef.ret]);
+    env.vars.set(typedVarDef.typedVar.name, typedVarDef.typedVar.type);
   });
 
-  prog.funDefs.forEach((fundef) => {
-    const typedFunDef = typeCheckFunDefs(fundef, env);
+  prog.funDefs.forEach((funDef) => {
+    if (inBuiltFuncs.includes(funDef.name)) {
+      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${funDef.name}`);
+    }
+    if (env.funs.has(funDef.name)) {
+      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${funDef.name}`);
+    }
+    env.funs.set(funDef.name, [funDef.params.map(param => param.type), funDef.ret]);
+  });
+
+  prog.funDefs.forEach((funDef) => {
+    const typedFunDef = typeCheckFunDef(funDef, env);
     typedFunDefs.push(typedFunDef);
-    //env.funs.set(typedFunDef.name, [fundef.params.map(param => param.type), fundef.ret]);
+  });
+
+  prog.classDefs.forEach((classDef) => {
+    const typedClassDef = typeCheckClassDef(classDef, env);
+    typedClassDefs.push(typedClassDef);
   });
 
   prog.stmts.forEach((stmt) => {
@@ -81,30 +114,45 @@ export function typeCheckProgram(prog: Program<null>): Program<Type> {
     typedStmts.push(typedStmt);
   });
 
-  return { ...prog, varDefs: typedVarInits, funDefs: typedFunDefs, stmts: typedStmts };
+  let lastType = NONE;
+  if (typedStmts.length > 0 && typedStmts[typedStmts.length - 1].tag === "expr") {
+    lastType = typedStmts[typedStmts.length - 1].a;
+  }
+
+  return { ...prog, a: lastType, varDefs: typedVarInits, funDefs: typedFunDefs, classDefs: typedClassDefs, stmts: typedStmts };
 }
 
-export function typeCheckVarInit(init: VarDef<null>): VarDef<Type> {
-  const typedVar = typeCheckTypedVar(init.type);
-  const typedLiteral = typeCheckLiteral(init.literal);
-  if (typedLiteral.a !== typedVar.a)
+export function assignableTo(s: Type, t: Type): boolean {
+  if (s === t) return true;
+  if (s.tag === "class") return t.tag === "class" && t.name === s.name;
+  if (s === NONE) return t.tag === "class";
+  return false;
+}
+
+export function typeCheckVarDef(varDef: VarDef<null>, env: TypeEnv): VarDef<Type> {
+  const typedVar = typeCheckTypedVar(varDef.typedVar, env);
+  const typedLiteral = typeCheckLiteral(varDef.literal);
+  if (!assignableTo(typedLiteral.a, typedVar.a))
     throw new Error(`TYPE ERROR: expected type ${typedVar.a}, got ${typedLiteral.a}`);
-  return { type: typedVar, a: typedVar.type, literal: typedLiteral };
+  return { ...varDef, a: typedVar.type, typedVar: typedVar, literal: typedLiteral };
 }
 
-export function typeCheckTypedVar(typedVar: TypedVar<null>): TypedVar<Type> {
+export function typeCheckTypedVar(typedVar: TypedVar<null>, env: TypeEnv): TypedVar<Type> {
+  if (typedVar.type.tag === "class" && !env.classes.has(typedVar.type.name)) {
+    throw new Error(`TYPE ERROR: unknown class ${typedVar.type.name}`);
+  }
   return { ...typedVar, a: typedVar.type };
 }
 
-export function typeCheckFunDefs(fun: FunDef<null>, env: TypeEnv): FunDef<Type> {
+export function typeCheckFunDef(fun: FunDef<null>, env: TypeEnv): FunDef<Type> {
   const localEnv = duplicateEnv(env);
   const typedParams: TypedVar<Type>[] = [];
-  const typedVarInits: VarDef<Type>[] = [];
+  const typedVarDefs: VarDef<Type>[] = [];
   const localMap: Set<string> = new Set();
 
   // add params to env
   fun.params.forEach(param => {
-    const typedParam = typeCheckTypedVar(param);
+    const typedParam = typeCheckTypedVar(param, localEnv);
     typedParams.push(typedParam);
     if (localMap.has(typedParam.name)) {
       throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${typedParam.name}`);
@@ -117,14 +165,14 @@ export function typeCheckFunDefs(fun: FunDef<null>, env: TypeEnv): FunDef<Type> 
   // add inits to env
   // check inits
   fun.body.varDefs.forEach(vardef => {
-    const typedVarDef = typeCheckVarInit(vardef);
-    typedVarInits.push(typedVarDef);
-    if (localMap.has(typedVarDef.type.name)) {
-      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${typedVarDef.type.name}`);
+    const typedVarDef = typeCheckVarDef(vardef, localEnv);
+    typedVarDefs.push(typedVarDef);
+    if (localMap.has(typedVarDef.typedVar.name)) {
+      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${typedVarDef.typedVar.name}`);
     }
-    localMap.add(typedVarDef.type.name);
-    localEnv.globalOverWrite.add(typedVarDef.type.name);
-    localEnv.vars.set(typedVarDef.type.name, typedVarDef.type.type);
+    localMap.add(typedVarDef.typedVar.name);
+    localEnv.globalOverWrite.add(typedVarDef.typedVar.name);
+    localEnv.vars.set(typedVarDef.typedVar.name, typedVarDef.typedVar.type);
   });
 
   // add fun type to env
@@ -144,23 +192,70 @@ export function typeCheckFunDefs(fun: FunDef<null>, env: TypeEnv): FunDef<Type> 
     }
     typedStmts.push(typeCheckStmt(stmt, localEnv));
   });
-  if (!returnCame) {
-    throw new Error("TYPE ERROR: funtion must have a return statement");
-  }
-  return { ...fun, a: fun.ret, params: typedParams, body: { varDefs: typedVarInits, stmts: typedStmts } };
+  // if (!returnCame) {
+  //   throw new Error("TYPE ERROR: funtion must have a return statement");
+  // }
+  return { ...fun, a: fun.ret, params: typedParams, body: { varDefs: typedVarDefs, stmts: typedStmts } };
+}
+
+export function typeCheckClassDef(cls: ClassDef<null>, env: TypeEnv): ClassDef<Type> {
+  const localEnv = duplicateEnv(env);
+  const typedVarDefs: VarDef<Type>[] = [];
+  const typedFunDefs: FunDef<Type>[] = [];
+  const localMap: Set<string> = new Set();
+
+  cls.fields.forEach(field => {
+    const typedVarDef = typeCheckVarDef(field, localEnv);
+    typedVarDefs.push(typedVarDef);
+    if (localMap.has(typedVarDef.typedVar.name)) {
+      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${typedVarDef.typedVar.name}`);
+    }
+    localMap.add(typedVarDef.typedVar.name);
+    localEnv.globalOverWrite.add(typedVarDef.typedVar.name);
+    localEnv.vars.set(typedVarDef.typedVar.name, typedVarDef.typedVar.type);
+  });
+
+  cls.methods.forEach(method => {
+    const typedFunDef = typeCheckFunDef(method, env);
+    typedFunDefs.push(typedFunDef);
+    if (localMap.has(typedFunDef.name)) {
+      throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${typedFunDef.name}`);
+    }
+    localMap.add(typedFunDef.name);
+    localEnv.funs.set(typedFunDef.name, [typedFunDef.params.map((p) => p.type), typedFunDef.ret]);
+  });
+
+  return { ...cls, a: CLASS(cls.name), fields: typedVarDefs, methods: typedFunDefs };
 }
 
 export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign: boolean = true): Stmt<Type> {
   switch (stmt.tag) {
+    // todo check assign field
     case "assign":
       if (!env.vars.has(stmt.name))
         throw new Error(`TYPE ERROR: not a variable ${stmt.name}`);
       if (checkGlobalAssign && !env.globalOverWrite.has(stmt.name))
         throw new Error(`TYPE ERROR: cannot assign to variable that is explicity not declared in this scope ${stmt.name}`);
       const typedValue = typeCheckExpr(stmt.value, env);
-      if (typedValue.a !== env.vars.get(stmt.name))
+      if (!assignableTo(typedValue.a, env.vars.get(stmt.name)))
         throw new Error(`TYPE ERROR: expected type ${env.vars.get(stmt.name)}, got ${typedValue.a}`);
       return stmt;
+    case "assignfield":
+      const fieldObj = typeCheckExpr(stmt.obj, env);
+      const fieldVal = typeCheckExpr(stmt.value, env);
+      if (fieldObj.a.tag !== "class") {
+        throw new Error(`TYPE ERROR: expected type class, got ${fieldObj.a.tag}`);
+      }
+      if (!env.classes.has(fieldObj.a.name)) {
+        throw new Error(`TYPE ERROR: unknown class ${fieldObj.a.name}`);
+      }
+      if (!env.classes.get(fieldObj.a.name)[0].has(stmt.name)) {
+        throw new Error(`TYPE ERROR: cannot find field ${fieldObj.a.name} in class ${fieldObj.a.name}`);
+      }
+      if (!assignableTo(fieldVal.a, env.classes.get(fieldObj.a.name)[0].get(stmt.name))) {
+        throw new Error(`TYPE ERROR: expected type ${env.classes.get(fieldObj.a.name)[0].get(stmt.name)}, got ${fieldVal.a}`);
+      }
+      return { ...stmt, obj: fieldObj, value: fieldVal };
     case "return":
       if (stmt.ret === undefined) {
         if (env.retType !== undefined) {
@@ -169,7 +264,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
         return { ...stmt };
       } else {
         const typedRet = typeCheckExpr(stmt.ret, env);
-        if (env.retType !== typedRet.a)
+        if (!assignableTo(typedRet.a, env.retType))
           throw new Error(`TYPE ERROR: expected type ${env.retType}, got ${typedRet.a}`);
         return { ...stmt, ret: typedRet, a: typedRet.a };
       }
@@ -201,6 +296,8 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
         stmt.else.forEach((stmt) => {
           typedElse.push(typeCheckStmt(stmt, env));
         });
+      } else {
+        throw new Error(`If must have else`);
       }
 
       return { ...stmt, cond: typedCondIf, stmts: typedStmts, elif: typedElif, else: typedElse };
@@ -276,6 +373,18 @@ export function typeCheckExpr(expr: Expr<null>, env: TypeEnv): Expr<Type> {
       const bracketExpr = typeCheckExpr(expr.expr, env);
       return { ...expr, expr: bracketExpr, a: bracketExpr.a };
     case "call":
+      if (env.classes.has(expr.name)) {
+        const args = env.classes.get(expr.name)[1].get("__init__")[0];
+        const typedArgs: Expr<Type>[] = [];
+        expr.args.forEach((arg, idx) => {
+          const typedArg = typeCheckExpr(arg, env);
+          if (!assignableTo(typedArg.a, args[idx + 1])) {
+            throw new Error(`TYPE ERROR: arg type mismatch`);
+          }
+          typedArgs.push(typedArg);
+        });
+        return { ...expr, a: CLASS(expr.name), args: typedArgs };
+      }
       if (!inBuiltFuncs.includes(expr.name) && !env.funs.has(expr.name)) {
         throw new Error(`TYPE ERROR: not a function ${expr.name}`);
       }
@@ -290,7 +399,7 @@ export function typeCheckExpr(expr: Expr<null>, env: TypeEnv): Expr<Type> {
             if (typedArgsInBuilt.length !== 1) {
               throw new Error(`TYPE ERROR: expected 1 arguments got ${typedArgsInBuilt.length}`);
             }
-            return { ...expr, args: typedArgsInBuilt };
+            return { ...expr, args: typedArgsInBuilt, a: NONE };
           case "abs":
             if (typedArgsInBuilt.length !== 1) {
               throw new Error(`TYPE ERROR: expected 1 arguments got ${typedArgsInBuilt.length}`);
@@ -331,6 +440,46 @@ export function typeCheckExpr(expr: Expr<null>, env: TypeEnv): Expr<Type> {
     case "literal":
       const lit = typeCheckLiteral(expr.literal)
       return { ...expr, a: lit.a }
+    case "getfield":
+      const getFieldObj = typeCheckExpr(expr.obj, env);
+      if (getFieldObj.a.tag === "class") {
+        if (env.classes.has(getFieldObj.a.name)) {
+          if (env.classes.get(getFieldObj.a.name)[0].has(expr.name)) {
+            return { ...expr, a: env.classes.get(getFieldObj.a.name)[0].get(expr.name), obj: getFieldObj };
+          } else {
+            throw new Error(`TYPE ERROR: cannot find field ${expr.name} in class ${getFieldObj.a.name}`);
+          }
+        } else {
+          throw new Error(`TYPE ERROR: unknown class ${getFieldObj.a.name}`);
+        }
+      } else {
+        throw new Error(`TYPE ERROR: expected class, got type ${getFieldObj.a.tag}`);
+      }
+    case "callmethod":
+      const callMethodObj = typeCheckExpr(expr.obj, env);
+      if (callMethodObj.a.tag === "class") {
+        if (env.classes.has(callMethodObj.a.name)) {
+          if (env.classes.get(callMethodObj.a.name)[1].has(expr.name)) {
+            const args = env.classes.get(callMethodObj.a.name)[1].get(expr.name)[0];
+            const ret = env.classes.get(callMethodObj.a.name)[1].get(expr.name)[1];
+            const typedArgs: Expr<Type>[] = [];
+            expr.args.forEach((arg, idx) => {
+              const typedArg = typeCheckExpr(arg, env);
+              if (!assignableTo(typedArg.a, args[idx + 1])) {
+                throw new Error(`TYPE ERROR: arg type mismatch`);
+              }
+              typedArgs.push(typedArg);
+            });
+            return { ...expr, a: ret, obj: callMethodObj, args: typedArgs };
+          } else {
+            throw new Error(`TYPE ERROR: cannot find method ${expr.name} in class ${callMethodObj.a.name}`);
+          }
+        } else {
+          throw new Error(`TYPE ERROR: unknown class ${callMethodObj.a.name}`);
+        }
+      } else {
+        throw new Error(`TYPE ERROR: expected class, got type ${callMethodObj.a.tag}`);
+      }
     default:
       throw new Error("TYPE ERROR: tag not handled in expr");
   }
@@ -343,7 +492,7 @@ export function typeCheckLiteral(literal: Literal<null>): Literal<Type> {
     case "bool":
       return { ...literal, a: BOOL }
     case "none":
-      return { ...literal }
+      return { ...literal, a: NONE }
   }
 }
 
