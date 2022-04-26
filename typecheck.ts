@@ -297,7 +297,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
           typedElse.push(typeCheckStmt(stmt, env));
         });
       } else {
-        throw new Error(`If must have else`);
+        throw new Error(`TYPE ERROR: if must have else`);
       }
 
       return { ...stmt, cond: typedCondIf, stmts: typedStmts, elif: typedElif, else: typedElse };
@@ -503,6 +503,6 @@ export function getUniOpType(uniop: Uniop): Type {
     case Uniop.Minus:
       return NUM;
     default:
-      throw new Error("Uniop type does not exist");
+      throw new Error("TYPE ERROR: uniop type does not exist");
   }
 }
