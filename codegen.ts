@@ -2,7 +2,7 @@ import { Binop, BOOL, Expr, FunDef, Literal, NUM, Program, Stmt, Type, Uniop } f
 
 type Env = Map<string, boolean>;
 
-export function codeGenProgram(prog: Program<Type>) : string {
+export function codeGenProgram(prog: Program<Type>): string {
   const emptyEnv = new Map<string, boolean>();
   const vars = prog.varDefs;
   const funs = prog.funDefs;
@@ -21,7 +21,7 @@ export function codeGenProgram(prog: Program<Type>) : string {
   }
   var retType = "";
   var retVal = "";
-  if(isExpr) {
+  if (isExpr) {
     retType = "(result i32)";
     retVal = "(local.get $scratch)"
   }
@@ -45,7 +45,7 @@ export function codeGenProgram(prog: Program<Type>) : string {
   `;
 }
 
-export function codeGenFunc(f: FunDef<Type>, locals :Env) : Array<string> {
+export function codeGenFunc(f: FunDef<Type>, locals: Env): Array<string> {
   const withParamsAndVariables = new Map<string, boolean>(locals.entries());
 
   // Construct the environment for the function body
@@ -65,7 +65,7 @@ export function codeGenFunc(f: FunDef<Type>, locals :Env) : Array<string> {
     ${stmtsBody})`];
 }
 
-export function codeGenLiteral(literal: Literal<Type>, locals: Env) : Array<string> {
+export function codeGenLiteral(literal: Literal<Type>, locals: Env): Array<string> {
   switch (literal.tag) {
     case "bool":
       if (literal.value) return [`(i32.const 1)`];
@@ -77,7 +77,7 @@ export function codeGenLiteral(literal: Literal<Type>, locals: Env) : Array<stri
   }
 }
 
-export function codeGenBinOp(binop: Binop) : Array<string> {
+export function codeGenBinOp(binop: Binop): Array<string> {
   switch (binop) {
     case Binop.Plus:
       return [`i32.add`];
@@ -106,11 +106,11 @@ export function codeGenBinOp(binop: Binop) : Array<string> {
   }
 }
 
-export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
-  switch(expr.tag) {
+export function codeGenExpr(expr: Expr<Type>, locals: Env): Array<string> {
+  switch (expr.tag) {
     case "literal": return codeGenLiteral(expr.literal, locals);
     case "id":
-      if(locals.has(expr.name)) { return [`(local.get $${expr.name})`]; }
+      if (locals.has(expr.name)) { return [`(local.get $${expr.name})`]; }
       else { return [`(global.get $${expr.name})`]; }
     case "binexpr":
       const lhsExprs = codeGenExpr(expr.left, locals);
@@ -120,18 +120,18 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
     case "uniexpr":
       switch (expr.op) {
         case Uniop.Minus:
-          const dummyLit = <Literal<Type>>{value: 0, tag: "num"};
+          const dummyLit = <Literal<Type>>{ value: 0, tag: "num" };
           dummyLit.a = NUM;
-          const dummyVar = <Expr<Type>>{tag:"literal", literal: dummyLit};
+          const dummyVar = <Expr<Type>>{ tag: "literal", literal: dummyLit };
           dummyVar.a = NUM;
           const lhsExprs = codeGenExpr(dummyVar, locals);
           const rhsExprs = codeGenExpr(expr.expr, locals);
           const opstmts = codeGenBinOp(Binop.Minus);
           return [...lhsExprs, ...rhsExprs, ...opstmts];
         case Uniop.Not:
-          const dummyLitBool = <Literal<Type>>{value: true, tag: "bool"};
+          const dummyLitBool = <Literal<Type>>{ value: true, tag: "bool" };
           dummyLitBool.a = BOOL;
-          const dummyVarBool = <Expr<Type>>{tag:"literal", literal: dummyLitBool};
+          const dummyVarBool = <Expr<Type>>{ tag: "literal", literal: dummyLitBool };
           dummyVarBool.a = BOOL;
           const lhsExprsBool = codeGenExpr(dummyVarBool, locals);
           const rhsExprsBool = codeGenExpr(expr.expr, locals);
@@ -141,9 +141,9 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
     case "call":
       const valStmts = expr.args.map(e => codeGenExpr(e, locals)).map(f => f.join("\n"));
       let toCall = expr.name;
-      if(expr.name === "print") {
+      if (expr.name === "print") {
         if (expr.args[0].a !== undefined) {
-          switch(expr.args[0].a) {
+          switch (expr.args[0].a) {
             case BOOL: toCall = "print_bool"; break;
             default: toCall = "print_num"; break;
           }
@@ -158,22 +158,22 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
   }
 }
 
-export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
-  switch(stmt.tag) {
+export function codeGenStmt(stmt: Stmt<Type>, locals: Env): Array<string> {
+  switch (stmt.tag) {
     case "return":
       if (stmt.ret) {
         const valStmts = codeGenExpr(stmt.ret, locals);
         valStmts.push("return");
         return valStmts;
       } else {
-        const noneExpr = <Expr<Type>>{tag: "literal", literal: {tag: "none"}};
+        const noneExpr = <Expr<Type>>{ tag: "literal", literal: { tag: "none" } };
         const valStmts = codeGenExpr(noneExpr, locals);
         valStmts.push("return");
         return valStmts;
       }
     case "assign":
       const valStmts = codeGenExpr(stmt.value, locals);
-      if(locals.has(stmt.name)) { valStmts.push(`(local.set $${stmt.name})`); }
+      if (locals.has(stmt.name)) { valStmts.push(`(local.set $${stmt.name})`); }
       else { valStmts.push(`(global.set $${stmt.name})`); }
       return valStmts;
     case "expr":
@@ -209,7 +209,7 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
       if (stmt.elif) {
         const elifCondGen = codeGenExpr(stmt.elif.cond, locals).join("\n");
         const elifStmts = stmt.elif.stmts.map(s => codeGenStmt(s, locals)).map(f => f.join("\n")).join("\n");
-        if (stmt.else === undefined) { 
+        if (stmt.else === undefined) {
           elifGen = `
           (else
             ${elifCondGen}
@@ -235,7 +235,7 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
            )
            ${elifGen}
         )
-       `]; 
+       `];
       }
       return [`
        ${condGen}
