@@ -8,6 +8,7 @@ import * as compiler from '../compiler';
 
 // Modify typeCheck to return a `Type` as we have specified below
 export function typeCheck(source: string): Type {
+  throw new Error(source);
   const ast = parse(source)
   const typedAst = typeCheckProgram(ast)
   if (typedAst.a.tag == "class")
