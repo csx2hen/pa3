@@ -14,7 +14,7 @@ export function compile(source: string) : CompileResult {
   const ast = parse(source);
   console.log("PARSED AST", ast);
   const typedAst = typeCheckProgram(ast);
-  console.log("TYPE CHECKED AST", typedAst);
+  console.log("TYPE CHECKED AST", JSON.stringify(typedAst, null, 2));
   const wasmSource = codeGenProgram(typedAst);
   console.log("CODE GEN", wasmSource);
   return {

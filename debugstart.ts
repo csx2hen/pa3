@@ -22,7 +22,14 @@ r2.d = 2
 print(r1.mul(r2).mul(r2).n)
 `
 
-const p = parse(py_1);
-const typed = typeCheckProgram(p);
-console.log(JSON.stringify(typed, null, 2))
-console.log(typed.a)
+const py_2 = `
+class C(object):
+    x : int = 0
+
+print(not (C() is None))`
+
+// const parsed = parse(py_1);
+// const typed = typeCheckProgram(parsed);
+const compiled = compile(py_2)
+// console.log(JSON.stringify(typed, null, 2))
+// console.log(typed.a)

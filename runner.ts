@@ -27,6 +27,7 @@ export async function run(source : string, config: any) : Promise<number> {
   const importObject = config.importObject;
   const myModule = wabtInterface.parseWat("test.wat", compiled.wasmSource);
   var asBinary = myModule.toBinary({});
-  var wasmModule = await WebAssembly.instantiate(asBinary.buffer, importObject);
+  const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+  var wasmModule = await WebAssembly.instantiate(asBinary.buffer, { imports: importObject.imports, mem: { memory: memory } });
   return (wasmModule.instance.exports as any)._start();
 }

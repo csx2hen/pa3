@@ -28,7 +28,17 @@ export async function run(source: string) {
   const compiled = compiler.compile(source);
   const myModule = wabtInterface.parseWat("test.wat", compiled.wasmSource);
   var asBinary = myModule.toBinary({});
-  var wasmModule = await WebAssembly.instantiate(asBinary.buffer, {imports: importObject.imports});
+  const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+  const imports = {
+    ...importObject.imports,
+    runtime_check: (arg: number) => {
+      if (arg === 0) {
+        throw new Error("RUNTIME ERROR: the obj is null")
+      }
+      return arg;
+    },
+  };
+  var wasmModule = await WebAssembly.instantiate(asBinary.buffer, { imports: imports, mem: { memory: memory } });
   (wasmModule.instance.exports as any)._start();
 }
 

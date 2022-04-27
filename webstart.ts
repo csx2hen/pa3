@@ -30,6 +30,12 @@ function webStart() {
         print_none: (arg: any) => {
           display("None");
           return arg;
+        },
+        runtime_check: (arg: any) => {
+          if (arg === 0) {
+            throw new Error("RUNTIME ERROR: the obj is null")
+          }
+          return arg;
         }
       },
     };

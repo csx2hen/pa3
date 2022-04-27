@@ -230,7 +230,6 @@ export function typeCheckClassDef(cls: ClassDef<null>, env: TypeEnv): ClassDef<T
 
 export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign: boolean = true): Stmt<Type> {
   switch (stmt.tag) {
-    // todo check assign field
     case "assign":
       if (!env.vars.has(stmt.name))
         throw new Error(`TYPE ERROR: not a variable ${stmt.name}`);
@@ -239,7 +238,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
       const typedValue = typeCheckExpr(stmt.value, env);
       if (!assignableTo(typedValue.a, env.vars.get(stmt.name)))
         throw new Error(`TYPE ERROR: expected type ${env.vars.get(stmt.name)}, got ${typedValue.a}`);
-      return stmt;
+      return { ...stmt, value: typedValue };
     case "assignfield":
       const fieldObj = typeCheckExpr(stmt.obj, env);
       const fieldVal = typeCheckExpr(stmt.value, env);
@@ -294,7 +293,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
       if (stmt.else) {
         typedElse = [];
         stmt.else.forEach((stmt) => {
-          typedElse.push(typeCheckStmt(stmt, env));
+          typedElse.push(typeCheckStmt(stmt, env, checkGlobalAssign));
         });
       } else {
         throw new Error(`TYPE ERROR: if must have else`);
@@ -308,7 +307,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
       }
       const typedStmtsWhile: Stmt<Type>[] = [];
       stmt.stmts.forEach((stmt) => {
-        typedStmtsWhile.push(typeCheckStmt(stmt, env));
+        typedStmtsWhile.push(typeCheckStmt(stmt, env, checkGlobalAssign));
       });
       return { ...stmt, cond: typedCondWhile, stmts: typedStmtsWhile };
     case "pass":
@@ -357,9 +356,9 @@ export function typeCheckExpr(expr: Expr<null>, env: TypeEnv): Expr<Type> {
           throw new Error(`TYPE ERROR: cannot apply ${expr.op} on types ${left.a} and ${right.a}`);
         return { ...expr, left: left, right: right, a: getConditionTypeFromOp(expr.op) };
       } else if (exclusiveNoneOps.includes(expr.op)) {
-        if (left.a !== undefined)
+        if (left.a.tag !== "none" && left.a.tag != "class")
           throw new Error(`TYPE ERROR: cannot apply ${expr.op} on types ${left.a} and ${right.a}`);
-        if (right.a !== undefined)
+        if (right.a.tag !== "none" && right.a.tag != "class")
           throw new Error(`TYPE ERROR: cannot apply ${expr.op} on types ${left.a} and ${right.a}`);
         return { ...expr, left: left, right: right, a: getConditionTypeFromOp(expr.op) };
       }
