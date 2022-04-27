@@ -9,18 +9,18 @@ import * as compiler from '../compiler';
 // Modify typeCheck to return a `Type` as we have specified below
 export function typeCheck(source: string): Type {
   throw new Error(source);
-  const ast = parse(source)
-  const typedAst = typeCheckProgram(ast)
-  if (typedAst.a.tag == "class")
-    return CLASS(typedAst.a.name)
-  switch (typedAst.a) {
-    case AstBOOL:
-      return BOOL
-    case AstNUM:
-      return NUM
-    default:
-      return NONE
-  }
+  // const ast = parse(source)
+  // const typedAst = typeCheckProgram(ast)
+  // if (typedAst.a.tag == "class")
+  //   return CLASS(typedAst.a.name)
+  // switch (typedAst.a) {
+  //   case AstBOOL:
+  //     return BOOL
+  //   case AstNUM:
+  //     return NUM
+  //   default:
+  //     return NONE
+  // }
 }
 
 // Modify run to use `importObject` (imported above) to use for printing
