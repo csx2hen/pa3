@@ -24,6 +24,7 @@ export function typeCheck(source: string): Type {
 
 // Modify run to use `importObject` (imported above) to use for printing
 export async function run(source: string) {
+  throw new Error(source);
   const wabtInterface = await wabt();
   const compiled = compiler.compile(source);
   const myModule = wabtInterface.parseWat("test.wat", compiled.wasmSource);
