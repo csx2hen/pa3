@@ -179,22 +179,14 @@ export function typeCheckFunDef(fun: FunDef<null>, env: TypeEnv): FunDef<Type> {
   // localEnv.funs.set(fun.name, [fun.params.map(param => param.type), fun.ret]);
 
   // add ret type
-  if (fun.ret !== undefined) {
-    localEnv.retType = fun.ret;
-  }
+  localEnv.retType = fun.ret;
 
   // make sure every path has the expected return type
   const typedStmts: Stmt<Type>[] = [];
-  let returnCame = false;
   fun.body.stmts.forEach((stmt) => {
-    if (stmt.tag === "return") {
-      returnCame = true;
-    }
     typedStmts.push(typeCheckStmt(stmt, localEnv));
   });
-  // if (!returnCame) {
-  //   throw new Error("TYPE ERROR: funtion must have a return statement");
-  // }
+  checkReturn(typedStmts, localEnv);
   return { ...fun, a: fun.ret, params: typedParams, body: { varDefs: typedVarDefs, stmts: typedStmts } };
 }
 
@@ -258,7 +250,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
     case "return":
       if (stmt.ret === undefined) {
         if (env.retType !== undefined) {
-          throw new Error(`TYPE ERROR: expected type none, got ${env.retType}`);
+          throw new Error(`TYPE ERROR: expected type ${env.retType.tag}, got none`);
         }
         return { ...stmt };
       } else {
@@ -327,6 +319,8 @@ function checkReturn(stmts: Stmt<Type>[], env: TypeEnv) {
   if (env.retType !== undefined) {
     if (stmts.length === 0 || stmts[stmts.length - 1].tag !== "return"){
       throw new Error("TYPE ERROR: missing return");
+    } else if (stmts[stmts.length - 1].tag !== "if") {
+      return
     } else if (!assignableTo(stmts[stmts.length - 1].a, env.retType)) {
       throw new Error(`TYPE ERROR: expected return type ${env.retType}, got ${stmts[stmts.length - 1].a}`);
     }

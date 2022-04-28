@@ -426,7 +426,7 @@ export function traverseClass(c: TreeCursor, s: string): ClassDef<null> {
     methods.push({
       name: "__init__",
       params: [{ name: "self", type: CLASS(name) }],
-      ret: NONE,
+      ret: undefined,
       body: { varDefs: [], stmts: [] },
     });
   }
