@@ -24,9 +24,12 @@ print(r1.mul(r2).mul(r2).n)
 
 const py_2 = `
 class C(object):
-    x : int = 0
-
-print(not (C() is None))`
+  def f(self: C) -> int:
+    if True:
+      return 0
+    else:
+      1
+`
 
 // const parsed = parse(py_1);
 // const typed = typeCheckProgram(parsed);

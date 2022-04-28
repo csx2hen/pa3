@@ -276,6 +276,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
       stmt.stmts.forEach((stmt) => {
         typedStmts.push(typeCheckStmt(stmt, env, checkGlobalAssign));
       });
+      checkReturn(typedStmts, env);
       let typedElif: { cond: Expr<Type>, stmts: Stmt<Type>[] } | undefined = undefined;
       let typedElse: Stmt<Type>[] | undefined = undefined;
 
@@ -288,6 +289,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
         stmt.elif.stmts.forEach((stmt) => {
           typedElifStmts.push(typeCheckStmt(stmt, env, checkGlobalAssign));
         });
+        checkReturn(typedElifStmts, env);
         typedElif = { cond: typedElifCond, stmts: typedElifStmts };
       }
       if (stmt.else) {
@@ -295,6 +297,7 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
         stmt.else.forEach((stmt) => {
           typedElse.push(typeCheckStmt(stmt, env, checkGlobalAssign));
         });
+        checkReturn(typedElse, env);
       } else {
         throw new Error(`TYPE ERROR: if must have else`);
       }
@@ -317,6 +320,16 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
       return { ...stmt, expr: typedExpr, a: typedExpr.a };
     default:
       throw new Error("TYPE ERROR: invalid expression");
+  }
+}
+
+function checkReturn(stmts: Stmt<Type>[], env: TypeEnv) {
+  if (env.retType !== undefined) {
+    if (stmts.length === 0 || stmts[stmts.length - 1].tag !== "return"){
+      throw new Error("TYPE ERROR: missing return");
+    } else if (!assignableTo(stmts[stmts.length - 1].a, env.retType)) {
+      throw new Error(`TYPE ERROR: expected return type ${env.retType}, got ${stmts[stmts.length - 1].a}`);
+    }
   }
 }
 
