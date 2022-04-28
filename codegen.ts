@@ -210,11 +210,16 @@ export function codeGenExpr(expr: Expr<Type>, varEnv: VarEnv, classEnv: ClassEnv
       valStmts.push(`(call $${toCall})`);
       return valStmts;
     case "callmethod":
-      const argInstrs = [expr.obj, ...expr.args].map(a => codeGenExpr(a, varEnv, classEnv)).flat();
+      const argInstrs = expr.args.map(a => codeGenExpr(a, varEnv, classEnv)).flat();
       if (expr.obj.a.tag !== "class") {
         throw new Error("should not reach");
       }
-      return [...argInstrs, `call $${expr.obj.a.name}$${expr.name}`];
+      return [
+        ...codeGenExpr(expr.obj, varEnv, classEnv),
+        `(call $runtime_check)`,
+        ...argInstrs,
+        `call $${expr.obj.a.name}$${expr.name}`
+      ];
     case "getfield":
       const objStmts = codeGenExpr(expr.obj, varEnv, classEnv);
       if (expr.obj.a.tag !== "class") {
