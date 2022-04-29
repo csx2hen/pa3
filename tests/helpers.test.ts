@@ -8,7 +8,7 @@ import * as compiler from '../compiler';
 
 // Modify typeCheck to return a `Type` as we have specified below
 export function typeCheck(source: string): Type {
-  source = "\n" + source;
+  source = source + "\n";
   const ast = parse(source)
   const typedAst = typeCheckProgram(ast)
   if (typedAst.a.tag == "class")
@@ -26,7 +26,7 @@ export function typeCheck(source: string): Type {
 // Modify run to use `importObject` (imported above) to use for printing
 export async function run(source: string) {
   const wabtInterface = await wabt();
-  source = "\n" + source;
+  source = source + "\n";
   const compiled = compiler.compile(source);
   const myModule = wabtInterface.parseWat("test.wat", compiled.wasmSource);
   var asBinary = myModule.toBinary({});
