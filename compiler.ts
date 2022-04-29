@@ -11,6 +11,7 @@ type CompileResult = {
 };
 
 export function compile(source: string) : CompileResult {
+  source = source + "\n";
   const ast = parse(source);
   console.log("PARSED AST", ast);
   const typedAst = typeCheckProgram(ast);

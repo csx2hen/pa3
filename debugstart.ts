@@ -23,14 +23,12 @@ print(r1.mul(r2).mul(r2).n)
 `
 
 const py_2 = `
-  class C(object):
-    def fib(self: C, n: int) -> int:
-      if n <= 0:
-        return 1
-      else:
-        return n * self.fib(n-1)
-  
-  C().fib(5)
+class C(object):
+  def f(self: C) -> int:
+    if True:
+      return 0
+    else:
+      return
 `
 
 // const parsed = parse(py_1);
