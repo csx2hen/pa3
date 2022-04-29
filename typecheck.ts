@@ -317,12 +317,15 @@ export function typeCheckStmt(stmt: Stmt<null>, env: TypeEnv, checkGlobalAssign:
 
 function checkReturn(stmts: Stmt<Type>[], env: TypeEnv) {
   if (env.retType !== undefined) {
-    if (stmts.length === 0 || stmts[stmts.length - 1].tag !== "return"){
+    if (stmts.length === 0) {
       throw new Error("TYPE ERROR: missing return");
-    } else if (stmts[stmts.length - 1].tag !== "if") {
-      return
-    } else if (!assignableTo(stmts[stmts.length - 1].a, env.retType)) {
-      throw new Error(`TYPE ERROR: expected return type ${env.retType}, got ${stmts[stmts.length - 1].a}`);
+    } else {
+      if (stmts[stmts.length - 1].tag === "if") return;
+      if (stmts[stmts.length - 1].tag !== "return") {
+        throw new Error("TYPE ERROR: missing return");
+      } else if (!assignableTo(stmts[stmts.length - 1].a, env.retType)) {
+        throw new Error(`TYPE ERROR: expected return type ${env.retType}, got ${stmts[stmts.length - 1].a}`);
+      }
     }
   }
 }
