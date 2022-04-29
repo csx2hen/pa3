@@ -24,11 +24,9 @@ print(r1.mul(r2).mul(r2).n)
 
 const py_2 = `
 class C(object):
-  def f(self: C) -> int:
-    if True:
-      return 0
-    else:
-      return
+  n : int = 0
+  def __init__(self: C, n : int):
+    self.n = n
 `
 
 // const parsed = parse(py_1);

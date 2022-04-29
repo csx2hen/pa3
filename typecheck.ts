@@ -75,6 +75,11 @@ export function typeCheckProgram(prog: Program<null>): Program<Type> {
       if (methods.has(method.name)) {
         throw new Error(`TYPE ERROR: duplicate declaration of identifier in same scope ${method.name}`);
       }
+      if (method.name === "__init__") {
+        if (method.params.length > 1) {
+          throw new Error(`TYPE ERROR: invalid param for init func`);
+        }
+      }
       methods.set(method.name, [method.params.map((p) => p.type), method.ret]);
     });
     env.classes.set(classDef.name, [fields, methods]);
@@ -215,6 +220,7 @@ export function typeCheckClassDef(cls: ClassDef<null>, env: TypeEnv): ClassDef<T
     }
     localMap.add(typedFunDef.name);
     localEnv.funs.set(typedFunDef.name, [typedFunDef.params.map((p) => p.type), typedFunDef.ret]);
+    
   });
 
   return { ...cls, a: CLASS(cls.name), fields: typedVarDefs, methods: typedFunDefs };
